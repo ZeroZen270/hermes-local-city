@@ -1,0 +1,15 @@
+# Render free-tier blueprint for the Hermes Local city.
+# GEMINI_API_KEY / HERMES_WORLD_TOKEN are entered in the Render
+# dashboard at deploy time (sync: false = never stored here).
+services:
+  - type: web
+    name: hermes-local-city
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m hermes_local serve --config hf.yaml --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: HERMES_WORLD_TOKEN
+        sync: false
