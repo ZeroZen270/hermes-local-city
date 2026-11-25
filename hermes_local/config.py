@@ -20,6 +20,11 @@ DEFAULTS: dict = {
         "api_key": "",              # only needed for OpenAI-compatible hosted endpoints
         "provider": "",             # named preset, e.g. "nous-longcat" (see PROVIDERS)
         "api_key_env": "",          # env var holding the key, e.g. "NOUS_API_KEY"
+        # Provider fallback chain: list of llm-shaped dicts (same
+        # fields as above) tried in order when the primary fails a
+        # chat outright — hosted free tiers exhaust by the day, and
+        # the chain is what keeps a hosted world talking.
+        "fallbacks": [],
     },
     "embeddings": {
         "base_url": "http://localhost:11434",
@@ -150,14 +155,30 @@ def load_config(path: str | None = None) -> dict:
     return cfg
 
 
+def _resolve_llm_entry(entry: dict, raw: dict) -> None:
+    """Resolve one llm-shaped dict: preset fills unset fields, then
+    api_key_env pulls the key from the environment."""
+    preset = PROVIDERS.get(str(entry.get("provider") or "").strip())
+    if preset:
+        for key, val in preset.items():
+            if key not in raw:  # explicit user values always win
+                entry[key] = val
+    env_name = str(entry.get("api_key_env") or "").strip()
+    if env_name and not entry.get("api_key"):
+        entry["api_key"] = os.environ.get(env_name, "")
+
+
 def _apply_provider(cfg: dict, raw_llm: dict) -> None:
     """Resolve llm.provider presets + api_key_env into concrete values."""
     llm = cfg.get("llm") or {}
-    preset = PROVIDERS.get(str(llm.get("provider") or "").strip())
-    if preset:
-        for key, val in preset.items():
-            if key not in raw_llm:  # explicit user values always win
-                llm[key] = val
-    env_name = str(llm.get("api_key_env") or "").strip()
-    if env_name and not llm.get("api_key"):
-        llm["api_key"] = os.environ.get(env_name, "")
+    _resolve_llm_entry(llm, raw_llm)
+    raw_fallbacks = raw_llm.get("fallbacks")
+    raw_fallbacks = raw_fallbacks if isinstance(raw_fallbacks, list) else []
+    resolved = []
+    for i, fb in enumerate(llm.get("fallbacks") or []):
+        if not isinstance(fb, dict):
+            continue
+        raw_fb = raw_fallbacks[i] if i < len(raw_fallbacks) else {}
+        _resolve_llm_entry(fb, raw_fb if isinstance(raw_fb, dict) else {})
+        resolved.append(fb)
+    llm["fallbacks"] = resolved
