@@ -1,2 +1,9 @@
+# Hermes Local on Hugging Face Spaces: the brain is Google's
+# Gemini free tier (AI Studio key in the GEMINI_API_KEY Space
+# secret) through its OpenAI-compatible endpoint. Explicit
+# values beat provider presets (see hermes_local/config.py).
 llm:
-  provider: nous-longcat
+  base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+  api: openai
+  model: gemini-flash-latest
+  api_key_env: GEMINI_API_KEY
