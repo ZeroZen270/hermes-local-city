@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hermes Local — Launch Portal</title>
+<style>
+  html, body { margin:0; min-height:100%; background:#0b0f14; color:#dfe7ee;
+    font-family: system-ui, sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 28px 18px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .02em; }
+  h1 .accent { color:#9fd8ff; }
+  .sub { color:#8a9aa7; margin: 0 0 22px; font-size: 14px; }
+  .card { background: rgba(16,24,33,.9); border:1px solid #2b3a47; border-radius:12px;
+    padding:16px 18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 10px; font-size:15px; letter-spacing:.05em; color:#9fd8ff; }
+  .card h3 { margin:14px 0 6px; font-size:13px; color:#ffd23f; }
+  .row { display:flex; justify-content:space-between; gap:16px; padding:2px 0;
+    font-size:14px; }
+  .row span { color:#8a9aa7; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12.5px;
+    border:1px solid #35506a; background:#1b2a38; }
+  .pill.ok { border-color:#2a7a4b; color:#37ff8b; }
+  .pill.down { border-color:#7a2a2a; color:#ff8a8a; }
+  .launch { display:flex; gap:14px; flex-wrap:wrap; }
+  a.btn { flex:1 1 240px; text-align:center; text-decoration:none; color:#0b0f14;
+    background:#37ff8b; border-radius:10px; padding:16px 10px; font-size:17px;
+    font-weight:700; }
+  a.btn.god { background:#ffd23f; }
+  a.btn small { display:block; font-weight:400; font-size:12.5px; margin-top:4px;
+    color:#243447; }
+  a.btn:hover { filter:brightness(1.1); }
+  pre { background:#0d141b; border:1px solid #2b3a47; border-radius:8px;
+    padding:10px 12px; overflow-x:auto; font-size:13px; line-height:1.55; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  td, th { border-bottom:1px solid #22303d; padding:5px 6px; text-align:left;
+    vertical-align:top; }
+  th { color:#8a9aa7; font-weight:600; }
+  a { color:#9fd8ff; }
+  ul { margin:6px 0; padding-left:20px; font-size:14px; line-height:1.6; }
+  .note { color:#8a9aa7; font-size:13px; line-height:1.55; }
+  #downBox { display:none; border:1px solid #7a4b2a; background:rgba(60,38,16,.35);
+    border-radius:8px; padding:10px 12px; font-size:13.5px; line-height:1.55; }
+  .names { color:#37ff8b; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HERMES <span class="accent">LOCAL</span> — Launch Portal</h1>
+  <p class="sub">Offline-first agent framework + NPC character engine + web city.
+  One brain, 54 citizens, proximity activation. This page is the front door.</p>
+  <p class="sub"><b>Primary deployment:</b> the Hermes brain system runs on the
+  host (this machine — <code>python -m hermes_local serve</code>), and the 3D
+  world loads as a web page in any browser pointed at the host. The status
+  below is that live pairing. A standalone in-browser fallback exists for
+  when no host is running — it is the fallback, not the headline.</p>
+
+  <div class="card">
+    <h2>LIVE SYSTEM STATUS <span id="statusPill" class="pill">checking…</span></h2>
+    <div id="statusRows">
+      <div class="row"><span>Bridge mode</span><b id="stMode">—</b></div>
+      <div class="row"><span>Brain</span><b id="stBrain">—</b></div>
+      <div class="row"><span>Provider</span><b id="stProvider">—</b></div>
+      <div class="row"><span>NPCs in city</span><b id="stCount">—</b></div>
+      <div class="row"><span style="color:#37ff8b">ACTIVE (≤15m, cap 4)</span><b id="stActive">—</b></div>
+      <div class="row"><span style="color:#ffd23f">AMBIENT (≤50m)</span><b id="stAmbient">—</b></div>
+      <div class="row"><span>DORMANT</span><b id="stDormant">—</b></div>
+      <div class="row"><span>ACTIVE now</span><b class="names" id="stNames">—</b></div>
+    </div>
+    <div id="downBox">
+      <b>The bridge server is not running</b> (or this page was opened as a
+      static file). The city still works: the launch buttons below open the
+      web world in <b>STANDALONE demo-brain mode</b> — roster, proximity
+      tiers, dialogue and god mode all run in the browser. For the live
+      Hermes bridge (real agent loop, persistent NPC memory), start the
+      server and reload:
+      <pre>cd hermes-local-agent
+python -m hermes_local serve --mock</pre>
+    </div>
+    <p class="note">Status refreshes every 5 seconds from <code>GET /api/status</code>.
+    <a href="#" id="refreshNow">Refresh now</a></p>
+  </div>
+
+  <div class="card">
+    <h2>LAUNCH</h2>
+    <div class="launch">
+      <a class="btn" href="demo.html">▶ Enter City — Play Mode
+        <small>Walk the city, talk to ACTIVE NPCs</small></a>
+      <a class="btn god" href="demo.html?mode=god">⚒ Enter City — God Mode
+        <small>Design the city: place, drag, save, load</small></a>
+    </div>
+    <p class="note">Both buttons open the web world served by this same host
+    (same origin — the intended pairing: brain on the server, world in the
+    browser). God Mode can also be toggled any time in-page with the
+    <code>G</code> key. The world HUD shows which brain is driving:
+    <b>LIVE — Hermes brain on server</b> in the primary pairing, or
+    <b>STANDALONE fallback — demo brain in browser</b> when no server
+    answered and the page fell back to running everything client-side.</p>
+  </div>
+
+  <div class="card">
+    <h2>BRAIN OPTIONS</h2>
+    <p style="font-size:14px;margin:4px 0">Detected-hardware ladder pick:
+      <b id="ladderPick">—</b> <span class="note" id="ladderWhy"></span></p>
+    <table>
+      <tr><th>Brain</th><th>Needs</th><th>Why</th></tr>
+      <tr><td><code>gpt-oss:20b</code></td><td>15GB VRAM / 20GB RAM</td><td>Full agent brain, native tool calling, 64K context in 16GB VRAM (q8_0 KV cache)</td></tr>
+      <tr><td><code>qwen3.5:9b</code></td><td>6GB VRAM / 10GB RAM</td><td>Strong mid-size tool caller</td></tr>
+      <tr><td><code>gemma4:12b</code></td><td>8GB VRAM / 14GB RAM</td><td>Native tools + vision; tokenizer family shared with EmbeddingGemma 2</td></tr>
+      <tr><td><code>qwen3:4b</code></td><td>3GB VRAM / 6GB RAM</td><td>The low-resource workhorse</td></tr>
+      <tr><td><code>qwen3:0.6b</code></td><td>anything</td><td>Tiny mode: chat/routing on nearly dead hardware</td></tr>
+    </table>
+    <h3>Hosted option — Nous Portal free tier (LongCat 2.5)</h3>
+    <p style="font-size:14px;margin:4px 0">Local stays the default. To use
+      Meituan's LongCat 2.5 free via Nous Portal instead, put this in
+      <code>config.yaml</code> and export a key from portal.nousresearch.com
+      (the key is read from the environment, never stored in config):</p>
+    <pre>llm:
+  provider: nous-longcat   # model: meituan/longcat-2.5:free, 1M context
+  api_key_env: NOUS_API_KEY</pre>
+    <p class="note">Free availability, quotas and balance requirements are
+      Nous's to change — treat the free tier as opportunistic, never a
+      dependency. If the endpoint doesn't answer, <code>serve</code> falls
+      back to the demo brain and local work is unaffected. Details in the
+      README section linked below.</p>
+  </div>
+
+  <div class="card">
+    <h2>QUICKSTART</h2>
+    <pre>cd hermes-local-agent
+python -m hermes_local                  # interactive REPL
+python -m hermes_local "summarize my notes"   # one-shot task
+python -m hermes_local --info           # resources / ladder / embedding status
+python -m hermes_local serve --mock     # bridge + city + this portal
+python tests/run_tests.py               # test suite (mock LLMs, no GPU)</pre>
+    <p class="note">URLs once serving: city at <code>/</code>, this portal at
+      <code>/portal</code>, JSON-lines socket for engines on port 8766.</p>
+  </div>
+
+  <div class="card">
+    <h2>DOCUMENTATION (README)</h2>
+    <ul>
+      <li><a href="../README.md#architecture">Architecture</a> — how the pieces fit</li>
+      <li><a href="../README.md#the-brain-ladder-llmpy">The brain ladder</a> — resource-detected local models</li>
+      <li><a href="../README.md#optional-hosted-brain-nous-portal-free-models-longcat-25">Nous Portal / LongCat preset</a></li>
+      <li><a href="../README.md#npcs-in-3d-worlds">NPCs in 3D worlds</a> — character cards, per-NPC memory, body actions</li>
+      <li><a href="../README.md#proximity-activation-the-scaling-system">Proximity activation</a> — the tier system that keeps 54 NPCs cheap</li>
+      <li><a href="../README.md#launch-portal">Launch portal &amp; standalone mode</a></li>
+      <li><a href="../README.md#the-web-world-browser-reference-client">The web world</a> + <a href="../README.md#god-mode-city-designer-play--god-key-g">god mode designer</a></li>
+      <li><a href="../README.md#tests">Tests</a> — what is verified, and what is not</li>
+    </ul>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+async function refreshStatus() {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 3000);
+    const r = await fetch('/api/status', { signal: ctl.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const s = await r.json();
+    $('statusPill').textContent = 'bridge live';
+    $('statusPill').className = 'pill ok';
+    $('downBox').style.display = 'none';
+    $('stMode').textContent = s.mode || '—';
+    $('stBrain').textContent = s.brain || '—';
+    $('stProvider').textContent = s.provider
+      ? s.provider + (s.endpoint ? ' · ' + s.endpoint : '') : '—';
+    $('stCount').textContent = s.npc_count !== undefined ? s.npc_count : '—';
+    $('stActive').textContent = s.active !== undefined ? s.active : '—';
+    $('stAmbient').textContent = s.ambient !== undefined ? s.ambient : '—';
+    $('stDormant').textContent = s.dormant !== undefined ? s.dormant : '—';
+    $('stNames').textContent = (s.active_names || []).join(', ') || '—';
+    if (s.ladder_pick) {
+      $('ladderPick').textContent = s.ladder_pick;
+      $('ladderWhy').textContent = s.ladder_why ? '— ' + s.ladder_why : '';
+    }
+  } catch (e) {
+    $('statusPill').textContent = 'server not running';
+    $('statusPill').className = 'pill down';
+    $('downBox').style.display = 'block';
+  }
+}
+$('refreshNow').addEventListener('click', e => { e.preventDefault(); refreshStatus(); });
+refreshStatus();
+setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

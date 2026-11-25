@@ -1,0 +1,50 @@
+# Hermes Local configuration — copy to config.yaml and edit.
+# Every value has a sane offline-first default; this file is optional.
+# Lookup order: $HERMES_LOCAL_CONFIG, ./config.yaml, ~/.hermes_local/config.yaml
+
+llm:
+  base_url: http://localhost:11434   # Ollama by default
+  api: ollama                        # ollama | openai (any OpenAI-compatible endpoint)
+  model: auto                        # auto = resource-detected brain ladder
+  timeout: 120
+  retries: 3
+  temperature: 0.7
+  api_key: ""                        # only for hosted OpenAI-compatible endpoints
+  # Optional hosted preset (local stays the default). "nous-longcat" =
+  # Nous Portal free tier running Meituan LongCat 2.5 (1M context):
+  #   provider: nous-longcat
+  #   api_key_env: NOUS_API_KEY      # export your Nous Portal key, never paste it here
+  # Preset fills only fields you didn't set yourself — an explicit
+  # base_url/model in this file wins. "nous" = same endpoint, your own model.
+  provider: ""
+  api_key_env: ""
+
+embeddings:
+  base_url: http://localhost:11434
+  api: ollama
+  # Built-in embedding layer + fallback chain (local hash embedder is last):
+  models: [embeddinggemma-2, embeddinggemma, nomic-embed-text]
+  timeout: 10
+  search_dim: 256                    # Matryoshka truncation used at search time
+  local_dim: 512
+
+memory:
+  db_path: ~/.hermes_local/memory.db
+  notes_path: ~/.hermes_local/notes.md
+  recall_k: 4
+
+agent:
+  tool_mode: auto                    # auto | native | react
+  max_iterations: 12
+  context_tokens: 16000              # compression keeps small windows capable
+  keep_recent_turns: 6
+  memory_recall: true
+  # NPC proximity activation:
+  active_radius: 15                  # meters — full agent loop
+  ambient_radius: 50                 # meters — scripted only, zero LLM calls
+  max_active: 4                      # director cap on ACTIVE NPCs
+
+tools:
+  workspace: .
+  docs_dir: docs
+  shell_timeout: 30

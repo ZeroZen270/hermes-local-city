@@ -1,0 +1,7 @@
+# Hermes Local — intentionally minimal.
+# The core framework (LLM client, embeddings, bridge) uses only the Python
+# standard library, so it runs with ZERO installs. These two are conveniences:
+pyyaml>=6.0        # config.yaml + YAML character cards (JSON cards need nothing)
+requests>=2.31     # optional; not required by the core (urllib is used instead)
+# Optional accelerator:
+# numpy>=1.24      # faster vector search in memory.py (pure-Python fallback built in)
