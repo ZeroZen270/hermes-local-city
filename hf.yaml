@@ -2,8 +2,13 @@
 # Gemini free tier (AI Studio key in the GEMINI_API_KEY Space
 # secret) through its OpenAI-compatible endpoint. Explicit
 # values beat provider presets (see hermes_local/config.py).
+# Model: Flash-Lite - the full Flash free tier allows only ~20
+# requests/day per project; Flash-Lite allows ~500/day and
+# 15/min, which a living city needs. retries: 1 so a quota
+# refusal is not retried into three wasted calls.
 llm:
   base_url: https://generativelanguage.googleapis.com/v1beta/openai/
   api: openai
-  model: gemini-flash-latest
+  model: gemini-3.5-flash-lite
   api_key_env: GEMINI_API_KEY
+  retries: 1
