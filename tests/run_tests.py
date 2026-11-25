@@ -1335,19 +1335,16 @@ def test_bridge_generator_soul_prompt():
                      kind="episode", namespace=card_a.namespace)
         stub = type("Stub", (), {"base_url": DEAD, "model": "fake-model",
                                  "api": "ollama", "temperature": 0.7,
-                                 "api_key": ""})()
+                                 "api_key": "",
+                                 "derive": lambda self, **kw:
+                                     FakeAmbientClient(**kw)})()
         FakeAmbientClient.instances = []
         FakeAmbientClient.reply_text = (
             f"{card_a.name}: Lovely weather for the district.\n"
             f"{card_b.name}: Aye, that it is.")
-        real_client = llm_mod.LLMClient
-        llm_mod.LLMClient = FakeAmbientClient
-        try:
-            gen = make_conversation_generator(
-                stub, anchor_names=["Central Plaza"], memory=mem)
-            out = gen(card_a, card_b, "Central Plaza")
-        finally:
-            llm_mod.LLMClient = real_client
+        gen = make_conversation_generator(
+            stub, anchor_names=["Central Plaza"], memory=mem)
+        out = gen(card_a, card_b, "Central Plaza")
         assert out is not None and len(out[0]) == 2, out
         ambient = FakeAmbientClient.instances[-1]
         assert len(ambient.calls) == 1, ambient.calls
@@ -3628,6 +3625,66 @@ def test_openai_path_no_doubled_v1():
         EmbeddingClient._post = orig_emb
 
 
+def test_llm_fallback_chain():
+    """(bp) Provider fallback chain: a dead primary (quota/5xx) must
+    hand the chat to the next provider in order; derive() must carry
+    the chain so the bridge's dedicated pens survive the same death;
+    all-dead raises LLMError, and tools rejected by EVERY provider
+    still surface as ToolUnsupportedError (ReAct degradation)."""
+    from hermes_local.llm import LLMClient, LLMError, ToolUnsupportedError
+
+    def fake_post(self, path, payload, **_kw):
+        if "dead" in self.base_url:
+            raise LLMError("HTTP 429 from dead provider")
+        if "notools" in self.base_url:
+            raise ToolUnsupportedError("tools rejected")
+        return {"choices": [{"message": {
+            "content": f"via {self.base_url}"}}]}
+
+    orig = LLMClient._post
+    LLMClient._post = fake_post
+    try:
+        dead = "https://dead.example/v1"
+        live = "https://live.example/v1"
+        client = LLMClient(base_url=dead, model="m", api="openai",
+                           retries=1,
+                           fallbacks=[LLMClient(base_url=live, model="m2",
+                                                api="openai", retries=1)])
+        out = client.chat([{"role": "user", "content": "hi"}])
+        assert out["content"] == f"via {live}", out
+        # derive(): same chain, overridden knobs, fallback model kept.
+        pen = client.derive(timeout=25, retries=1)
+        assert pen.timeout == 25 and pen.fallbacks[0].timeout == 25
+        assert pen.fallbacks[0].model == "m2"
+        out = pen.chat([{"role": "user", "content": "hi"}])
+        assert out["content"] == f"via {live}", out
+        # All providers dead -> LLMError.
+        hopeless = LLMClient(
+            base_url=dead, model="m", api="openai", retries=1,
+            fallbacks=[LLMClient(base_url=dead, model="m", api="openai",
+                                 retries=1)])
+        try:
+            hopeless.chat([{"role": "user", "content": "hi"}])
+            raise AssertionError("expected LLMError")
+        except LLMError:
+            pass
+        # Tools rejected everywhere -> ToolUnsupportedError, so the
+        # agent can still degrade to prompt-based ReAct.
+        rejector = LLMClient(
+            base_url="https://notools.example/v1", model="m",
+            api="openai", retries=1,
+            fallbacks=[LLMClient(base_url="https://notools2.example/v1",
+                                 model="m", api="openai", retries=1)])
+        try:
+            rejector.chat([{"role": "user", "content": "hi"}],
+                          tools=[{"type": "function"}])
+            raise AssertionError("expected ToolUnsupportedError")
+        except ToolUnsupportedError:
+            pass
+    finally:
+        LLMClient._post = orig
+
+
 def test_walkgrid_derivation():
     """(bh) Walk grid P10: dimensions follow the live bound
     (120x120 cells founding, 180x180 after one expansion);
@@ -4083,6 +4140,7 @@ TESTS = [
     ("(bm) daily schedules + 2880s day length", test_daily_schedules_and_day_length),
     ("(bn) version copies: changed push archives, throttle + retention, failure is a note", test_versioned_snapshots),
     ("(bo) workplace pools (shopkeeper->browse) + 5m claim radius for workplace/home", test_workplace_pools_and_claim_radius),
+    ("(bp) llm fallback chain: dead primary hands off, derive carries chain, tools-rejected-everywhere stays ToolUnsupported", test_llm_fallback_chain),
 ]
 
 
