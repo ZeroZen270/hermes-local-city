@@ -143,7 +143,8 @@ class LLMClient:
     def __init__(self, base_url: str = "http://localhost:11434",
                  model: str = "qwen3:4b", api: str = "ollama",
                  timeout: int = 120, retries: int = 3,
-                 temperature: float = 0.7, api_key: str = ""):
+                 temperature: float = 0.7, api_key: str = "",
+                 fallbacks: list | None = None):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.api = api
@@ -151,9 +152,46 @@ class LLMClient:
         self.retries = max(1, retries)
         self.temperature = temperature
         self.api_key = api_key
+        # Provider fallback chain: other LLMClients tried, in order,
+        # when this one fails a chat outright (quota exhausted, 5xx,
+        # unreachable). Hosted free tiers die by the day or the minute;
+        # the chain is what keeps a hosted world talking around the
+        # clock. Fallbacks do not inherit each other's chains.
+        self.fallbacks = list(fallbacks or [])
+
+    def derive(self, **overrides) -> "LLMClient":
+        """A copy of this client (chain included) with fields changed.
+
+        The bridge spawns dedicated short-timeout pens (ambient,
+        civics, research...) off the main brain; they must ride the
+        same fallback chain or a quota death would silence them while
+        the main loop keeps talking.
+        """
+        fields = {"base_url": self.base_url, "model": self.model,
+                  "api": self.api, "timeout": self.timeout,
+                  "retries": self.retries, "temperature": self.temperature,
+                  "api_key": self.api_key}
+        fields.update(overrides)
+        chain = [fb.derive(**overrides) for fb in self.fallbacks]
+        return LLMClient(fallbacks=chain, **fields)
 
     # -- public ------------------------------------------------------------
     def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+        errors: list[Exception] = []
+        for client in [self, *self.fallbacks]:
+            try:
+                return client._chat_once(messages, tools)
+            except LLMError as err:
+                errors.append(err)
+        # If every provider rejected the tools array itself, the
+        # caller degrades to prompt-based ReAct; anything else is a
+        # plain failure carrying the last provider's error.
+        if errors and all(isinstance(e, ToolUnsupportedError) for e in errors):
+            raise errors[-1]
+        raise LLMError(
+            f"chat failed on {len(errors)} provider(s): {errors[-1]}")
+
+    def _chat_once(self, messages: list[dict], tools) -> dict:
         last_err: Exception | None = None
         for attempt in range(self.retries):
             try:
@@ -161,7 +199,7 @@ class LLMClient:
                     return self._chat_openai(messages, tools)
                 return self._chat_ollama(messages, tools)
             except ToolUnsupportedError:
-                raise  # not retryable: the agent degrades to ReAct instead
+                raise  # not retryable here; chat() may try a fallback
             except LLMError as err:
                 last_err = err
                 if attempt < self.retries - 1:
