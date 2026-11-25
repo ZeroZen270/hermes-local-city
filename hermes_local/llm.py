@@ -223,16 +223,27 @@ class LLMClient:
         return {"content": msg.get("content") or "", "tool_calls": calls}
 
     # -- OpenAI-compatible ---------------------------------------------------
+    # NOTE: the OpenAI-flavoured parser below additionally preserves
+    # Gemini's thought_signature on tool calls (see _chat_openai).
     @staticmethod
     def _openai_msg(msg: dict) -> dict:
         out: dict = {"role": msg.get("role", "user"),
                      "content": msg.get("content") or ""}
         if msg.get("tool_calls"):
-            out["tool_calls"] = [
-                {"id": tc.get("id") or f"call_{i}", "type": "function",
-                 "function": {"name": tc["name"],
-                              "arguments": json.dumps(tc.get("arguments") or {})}}
-                for i, tc in enumerate(msg["tool_calls"])]
+            out["tool_calls"] = []
+            for i, tc in enumerate(msg["tool_calls"]):
+                entry = {"id": tc.get("id") or f"call_{i}",
+                         "type": "function",
+                         "function": {"name": tc["name"],
+                                      "arguments": json.dumps(
+                                          tc.get("arguments") or {})}}
+                # Gemini 3.x rejects a replayed function call that
+                # lacks the thought_signature it issued with it
+                # (HTTP 400); carry it through verbatim.
+                if tc.get("thought_signature"):
+                    entry["extra_content"] = {"google": {
+                        "thought_signature": tc["thought_signature"]}}
+                out["tool_calls"].append(entry)
         if msg.get("role") == "tool" and msg.get("tool_call_id"):
             out["tool_call_id"] = msg["tool_call_id"]
         return out
@@ -262,6 +273,13 @@ class LLMClient:
             args = fn.get("arguments") or {}
             if isinstance(args, str):
                 args = _json_or_empty(args)
-            calls.append({"id": tc.get("id") or f"call_{i}",
-                          "name": fn.get("name", ""), "arguments": args})
+            call = {"id": tc.get("id") or f"call_{i}",
+                    "name": fn.get("name", ""), "arguments": args}
+            # Gemini 3.x signs each function call; the signature must
+            # ride along in history or the next request is a 400.
+            sig = ((tc.get("extra_content") or {}).get("google") or {}
+                   ).get("thought_signature") or tc.get("thought_signature")
+            if sig:
+                call["thought_signature"] = sig
+            calls.append(call)
         return {"content": msg.get("content") or "", "tool_calls": calls}
