@@ -245,9 +245,12 @@ class LLMClient:
         }
         if tools:
             payload["tools"] = tools
-        # Preset bases (e.g. Nous) already end in /v1; a bare OpenAI-style
-        # base needs the /v1 prefix. Doubling it 404s every chat call.
-        path = ("/chat/completions" if self.base_url.endswith("/v1")
+        # Preset bases (e.g. Nous) already end in /v1, and Google's
+        # OpenAI-compatible base ends in /openai (…/v1beta/openai);
+        # both are complete API roots. A bare OpenAI-style base needs
+        # the /v1 prefix. Doubling it 404s every chat call.
+        path = ("/chat/completions"
+                if self.base_url.endswith(("/v1", "/openai"))
                 else "/v1/chat/completions")
         data = self._post(path, payload,
                           tools_in_payload=bool(tools))
