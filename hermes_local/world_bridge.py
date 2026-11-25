@@ -371,10 +371,7 @@ def make_conversation_generator(client, anchor_names=None, memory=None,
     a few sim-minutes later (see ActivityPlanner)."""
     from .llm import LLMClient
 
-    ambient = LLMClient(base_url=client.base_url, model=client.model,
-                        api=client.api, timeout=25, retries=1,
-                        temperature=client.temperature,
-                        api_key=client.api_key)
+    ambient = client.derive(timeout=25, retries=1)
     anchors = list(anchor_names or [])
 
     def _who(card) -> str:
@@ -531,10 +528,7 @@ def make_civic_generators(client, memory=None):
     """
     from .llm import LLMClient
 
-    civic = LLMClient(base_url=client.base_url, model=client.model,
-                      api=client.api, timeout=25, retries=1,
-                      temperature=client.temperature,
-                      api_key=client.api_key)
+    civic = client.derive(timeout=25, retries=1)
 
     def _who(card) -> str:
         traits = ", ".join(card.traits) or "ordinary"
@@ -696,10 +690,7 @@ def make_research_brain(client):
     to the findings themselves'."""
     from .llm import LLMClient
 
-    planner_client = LLMClient(
-        base_url=client.base_url, model=client.model, api=client.api,
-        timeout=45, retries=1, temperature=client.temperature,
-        api_key=client.api_key)
+    planner_client = client.derive(timeout=45, retries=1)
 
     def synthesize(citizen, question, ctx, results):
         findings = "\n".join(
@@ -746,10 +737,7 @@ def make_spec_synthesizer(client):
     job is a well-formed attempt."""
     from .llm import LLMClient
 
-    spec_client = LLMClient(
-        base_url=client.base_url, model=client.model, api=client.api,
-        timeout=45, retries=1, temperature=client.temperature,
-        api_key=client.api_key)
+    spec_client = client.derive(timeout=45, retries=1)
 
     def synthesize(ctx):
         findings = "\n".join(
@@ -816,10 +804,7 @@ def make_design_brain(client):
     outdoor asset composition."""
     from .llm import LLMClient
 
-    design_client = LLMClient(
-        base_url=client.base_url, model=client.model, api=client.api,
-        timeout=45, retries=1, temperature=client.temperature,
-        api_key=client.api_key)
+    design_client = client.derive(timeout=45, retries=1)
 
     def design(ctx):
         errors = ""
@@ -1943,17 +1928,32 @@ def build_world(cfg: dict, mock: bool = False, characters_dir: str | None = None
                       "ladder_pick": ladder_model, "ladder_why": ladder_why}
     else:
         model = ladder_model
+        chain = []
+        for fb in lcfg.get("fallbacks") or []:
+            if not isinstance(fb, dict) or not fb.get("base_url"):
+                continue
+            chain.append(LLMClient(
+                base_url=fb["base_url"],
+                model=fb.get("model") or model,
+                api=fb.get("api", "openai"),
+                timeout=int(fb.get("timeout", lcfg.get("timeout", 120))),
+                retries=int(fb.get("retries", 1)),
+                temperature=float(fb.get("temperature",
+                                         lcfg.get("temperature", 0.7))),
+                api_key=fb.get("api_key", "")))
         client = LLMClient(base_url=lcfg.get("base_url", "http://localhost:11434"),
                            model=model, api=lcfg.get("api", "ollama"),
                            timeout=int(lcfg.get("timeout", 120)),
                            retries=int(lcfg.get("retries", 3)),
                            temperature=float(lcfg.get("temperature", 0.7)),
-                           api_key=lcfg.get("api_key", ""))
+                           api_key=lcfg.get("api_key", ""),
+                           fallbacks=chain)
         mode = f"live (brain: {model})"
         brain_info = {"brain": model,
                       "provider": lcfg.get("provider") or "local",
                       "endpoint": lcfg.get("base_url",
                                            "http://localhost:11434"),
+                      "fallbacks": [c.model for c in chain],
                       "ladder_pick": ladder_model, "ladder_why": ladder_why}
 
     cards = []
@@ -2018,10 +2018,7 @@ def build_world(cfg: dict, mock: bool = False, characters_dir: str | None = None
         # worlds keep the bridge's default rule-based interpreter.
         bridge.interpreter = WorldInterpreter(
             bridge,
-            client=LLMClient(base_url=client.base_url, model=client.model,
-                             api=client.api, timeout=30, retries=1,
-                             temperature=client.temperature,
-                             api_key=client.api_key),
+            client=client.derive(timeout=30, retries=1),
             memory=memory)
         # Live worlds get live civics (P5): the drafter, debater
         # and — per Aaron's directive — the per-citizen AI ballot
